@@ -1,0 +1,128 @@
+---
+title: "Case Study 2"
+author: "Andrew Griffin"
+date: "5/13/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, include=FALSE}
+library(Sleuth3)
+library(ggformula)
+library(dplyr)
+library(broom)
+library(car)
+library(ggthemes)
+library(GGally)
+farms <- read.csv("https://aloy.rbind.io/data/Farms.csv")
+```
+
+Before even looking at the data we decided it was important to decide on our ultimate goals because that may influence the model that we pick. The most important goal is to be able acurately predict the appraised value of the farm and the second goal is to determine which factors are the most influencial.
+
+Next we then decided to look at the data to determine if there were an outliers or recording errors that we have to watch out for when making our model.
+
+```{r}
+summary(farms)
+```
+When looking at improvements and crpPct maximums being very far from the third quartile indicate the potential for outliers, and the lows being far the first quartile in tillable and productivity indicate the same potential for outliers. Keeping this in mind, we decided to fit our first model which would include all of the variables to start.
+
+```{r}
+original_mlr<-lm(acrePrice ~ improvements + region + financing+ tillable + crpPct + productivity, data = farms)
+
+knitr::kable(tidy(summary(original_mlr)))
+```
+We noticed that few of the regions have high p values so we tested to see if we can drop region all together.
+
+```{r}
+original_mlr<-lm(acrePrice ~ improvements + financing+region+tillable + crpPct + productivity, data = farms)
+
+farms_mlr<-lm(acrePrice ~ improvements + financing+ tillable + crpPct + productivity, data = farms)
+
+knitr::kable(tidy(anova(original_mlr, farms_mlr)))
+```
+Since the p value is low we have to reject the reduced in favor of the full model, 
+which means we are unable to drop region from the model. However, because South Cental, South East and South West have very high p vlues we will test to see if we are able to drop them from the model
+
+```{r}
+farms$Type2 <- farms$region
+levels(farms$Type2) <- c("South and Central", "Northwest", "South and Central", "South and Central", "South and Central", "West Central")
+
+
+farms_mlr<-lm(acrePrice ~ improvements + Type2 + financing+ tillable + crpPct + productivity, data = farms)
+
+knitr::kable(tidy(anova(farms_mlr, original_mlr)))
+
+```
+0.38 is a high p value so we will reject the alternative hypothesis in favor, which means we are able to condense region down into few catagroical predictors. 
+
+```{r}
+knitr::kable(tidy(summary(farms_mlr)))
+```
+Looking at the model again we notice that financing has a high p value when perforoming a t test, so there is evidence to support that it zero and should be dropped from the model.
+
+```{r}
+farms_mlr<-lm(acrePrice ~ improvements + Type2 + tillable + crpPct + productivity, data = farms)
+knitr::kable(tidy(summary(farms_mlr)))
+```
+Now we want to go back and check to see if there any outliers and if they that effect. Additionally we also check for colineaity
+
+```{r}
+farms_aug <- augment(farms_mlr)
+influenceIndexPlot(farms_mlr)
+knitr::kable(tidy(vif(farms_mlr)))
+
+infIndexPlot(farms_mlr)
+```
+There are no points that have leverage and standardized residuals and none of the coeeficients are colinear. We then go ahead to diagnose the model just to check if it violates any of our assumptions
+
+```{r}
+gf_point(.resid~.fitted, data = farms_aug, xlab = "Fitted Values", ylab = "Residuals") %>%
+  gf_hline(yintercept = 0, linetype = 2)
+
+gf_qq(~.std.resid, data = farms_aug, xlab = "N(0, 1) quantiles",
+ylab = "Standardized residuals") %>%
+  gf_qqline()
+```
+We notice that the qq plot has a tail, which means our model violates error constant variance so we will have to transform the model to solve that problem.
+
+```{r}
+farms<-mutate(farms, sqrt.acrePrice=sqrt(acrePrice))
+
+farms_mlr<-lm(sqrt.acrePrice ~ improvements + Type2 + tillable + crpPct + productivity, data = farms)
+farms_aug <- augment(farms_mlr)
+
+knitr::kable(tidy(summary(farms_mlr)))
+
+gf_point(.resid~.fitted, data = farms_aug, xlab = "Fitted Values", ylab = "Residuals") %>%
+  gf_hline(yintercept = 0, linetype = 2)
+
+gf_qq(~.std.resid, data = farms_aug, xlab = "N(0, 1) quantiles",
+ylab = "Standardized residuals") %>%
+  gf_qqline()
+```
+
+We then sampled some transformations and decided that taking the square root of acrePrice was the most optimal to solve the problems of constant error variance. Having created and diagnosed the model, we then made predicition.
+
+```{r}
+new.data <- data.frame(Type2 = "South and Central", improvements = 0, tillable = 91,
+crpPct = 0, productivity = 61)
+
+predict(farms_mlr, newdata = new.data, interval = "prediction", level = 0.95)
+```
+
+Our model estimates that a farm of all of those characteristics would be appraised at a price of 4,591.31 dollars.
+
