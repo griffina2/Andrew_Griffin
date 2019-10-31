@@ -1,0 +1,231 @@
+---
+title: "Final Project R Code"
+author: "Andrew Griffin, Madhav Mohan, Katie Taylor"
+date: "6/5/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, include=FALSE}
+library(Sleuth3)
+library(ggplot2)
+library(ggformula)
+library(dplyr)
+library(broom)
+library(car)
+library(ggthemes)
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+Prem <- read_excel("~/Math245/Prem (1).xlsx")
+library(GGally)
+library(kableExtra)
+library(tidyverse)
+```
+
+### creating our training data set
+
+```{r}
+training_set <- filter (Prem, season< 2017)
+```
+
+### creating our validation data set
+
+```{r}
+validation_set <- filter (Prem, season>= 2017)
+```
+
+### summary stats for the prem 
+
+```{r}
+summary(Prem)
+```
+
+### scatterplot matrix to check for multicollinearity and to check certain variables if they stood out. 
+
+```{r fig.height=50, fig.width=50}
+#scatterplotMatrix( ~ points + goals + total_yellow_card + total_red_card + penalty_goals + total_shots_target + freekick_goals + in_box_goals + counter_attack + total_offside + clean_sheet + goals_conceded + saves + interception + total_tackle + total_clearance + pen_goals_conceded + total_pass + total_through_ball + total_cross + corner_taken + touches + lost_posession + champion + relegated, data = Prem, smooth = FALSE)
+```
+
+
+
+### baseline model with all variables included from dataset. 
+
+```{r}
+Model <- lm(points~ goals+total_yellow_card+total_red_card+Total_number_shots+	total_shots_target+hit_woodwork+Headed_goals+penalty_goals+freekick_goals+in_box_goals+	out_box_goals+counter_attack+total_offside+clean_sheet+goals_conceded+saves+outfielder_block	+interception+total_tackle+last_man_tackle+total_clearance+head_clearance+own_goals+	penalty_conceded+pen_goals_conceded+total_pass+total_through_ball+total_long_balls+	backward_pass+	total_cross+	corner_taken+	touches+	big_chance_missed+	clearance_off_line+	lost_posession+	penalty_save+	total_high_claim+	punches+	season+	champion+	relegated, data = training_set)
+summary(Model)
+```
+
+### graphs that have been colour coded using perception to check for possible interactions. 
+
+```{r, progress = FALSE}
+#Points and goals
+g1 <- ggpairs(data = Prem,mapping = aes(color = Perception , alpha = 0), columns = c("points", "goals"))
+```
+
+```{r}
+#Points and clean sheet
+g2 <- ggpairs(data = Prem,mapping = aes(color = Perception, alpha = 0), columns = c("points", "clean_sheet"))
+```
+
+```{r}
+g3 <- ggpairs(data = Prem,mapping = aes(color = Perception, alpha = 0), columns = c("points", "goals_conceded"))
+```
+
+```{r}
+g4 <- ggpairs(data = Prem,mapping = aes(color = Perception, alpha = 0), columns = c("points", "total_pass"))
+```
+
+```{r}
+g5 <- ggpairs(data = Prem,mapping = aes(color = Perception, alpha = 0), columns = c("points", "total_cross"))
+```
+
+```{r}
+g6 <- ggpairs(data = Prem,mapping = aes(color = Perception, alpha = 0), columns = c("points", "touches"))
+```
+
+```{r}
+g7 <- ggpairs(data = Prem,mapping = aes(color = Perception, alpha = 0), columns = c("points", "champion"))
+```
+
+```{r}
+g8 <- ggpairs(data = Prem,mapping = aes(color = Perception, alpha = 0), columns = c("points", "penalty_goals"))
+```
+
+```{r}
+g9 <- ggpairs(data = Prem,mapping = aes(color = Perception, alpha = 0), columns = c("points", "counter_attack"))
+```
+
+```{r}
+g10 <- ggpairs(data = Prem,mapping = aes(color = Perception, alpha = 0), columns = c("points", "saves"))
+```
+
+```{r}
+g1
+g2
+```
+
+```{r}
+g3
+g4
+```
+
+```{r}
+g5
+g6
+```
+
+```{r}
+g7
+g8
+```
+
+```{r}
+g9
+g10
+```
+
+
+
+### Model with all significant variables excluding explanatory variables, with a alpha level of 0.15,reached through backward elimination. 
+
+```{r}
+BetterModel <- lm(points~  in_box_goals + out_box_goals + clean_sheet+goals_conceded +total_cross + Perception: total_cross , data = training_set)
+summary(BetterModel)
+AIC(BetterModel)
+better_aug <- augment(BetterModel)
+gf_qq( ~ .std.resid, data = better_aug) %>%
+  gf_qqline()
+gf_point(.std.resid ~ .fitted, data =better_aug) %>%
+  gf_hline(yintercept = 0, linetype = 2)
+```
+
+### Final model reached after adding our explanatory variables. ALong with QQ plot and residual plot to check if transformations are needed. 
+
+```{r}
+BestModel <- lm(points~  in_box_goals + out_box_goals + clean_sheet+goals_conceded + pen_goals_conceded +total_cross +  + total_red_card + total_yellow_card  + Perception: total_cross + Perception: total_red_card + Perception:total_yellow_card, data = training_set)
+summary(BestModel)
+knitr::kable(tidy(summary(BestModel), format = latex, getOption(2)))
+AIC(BestModel)
+Best_aug <- augment(BestModel)
+gf_qq( ~ .std.resid, data = Best_aug, ylab = "Standardized Residuals", xlab = "N (0,1) Quantiles") %>%
+  gf_qqline()
+gf_point(.std.resid ~ .fitted, data =Best_aug, ylab = "Standardized Residual", xlab = "Fitted Values") %>%
+  gf_hline(yintercept = 0, linetype = 2)
+```
+
+### check for multicollinearity, shows there is some but through logical conclusions this result did not make sense.  
+
+```{r}
+#GGally::ggnostic(broomify(BestModel), progress = FALSE)
+#data.frame(vif(BestModel))
+```
+
+### check for outliers, there are none in training set. 
+
+```{r}
+kable(tidy(infIndexPlot(BestModel, vars = c ("Cook", "Studentized", "hat")))) 
+```
+### Final model compared to a model with no interactions, using anova test, shows that our final model is good.   
+```{r}
+NoInteractionModel <- lm(points~  in_box_goals + out_box_goals + clean_sheet+goals_conceded +total_cross +  total_red_card + total_yellow_card +  pen_goals_conceded , data = training_set)
+summary(NoInteractionModel)
+anova(NoInteractionModel, BestModel)
+```
+
+### table 1 
+```{r}
+vars <- c("in_box_goals", "out_box_goals", "clean_sheet", "goals_conceded", "total_cross", "total_red_card", "total_yellow_card", "pen_goals_conceded", "Perception")
+description <- c("The goals scored inside the penalty area",
+                 "The goals scored outside of the penalty area",
+                 "The defending team concedes zero goals",
+                 "The number of goals conceded by the team",
+                 "The total number of crosses created by the team",
+                 "The total number of red cards the team has received",
+                 "The total number of yellow cards the team has received",
+                 "The number of goals conceded through penalties",
+                 "If the team is consistently perceived to be good (the big six)")
+
+table1 <- data.frame(vars, description)
+names(table1) <- c("Variable", "Description")
+```
+
+### final model based on validation set, along with QQ plot and residual plot to check if transformations are needed. 
+ 
+```{r}
+final_model <- lm(points~  in_box_goals + out_box_goals + clean_sheet+goals_conceded + pen_goals_conceded +total_cross +  + total_red_card + total_yellow_card  + Perception: total_cross + Perception: total_red_card + Perception:total_yellow_card, data = validation_set)
+summary(final_model)
+knitr::kable(tidy(summary(final_model), format = latex, getOption(2)))
+AIC(final_model)
+final_model_aug <- augment(final_model)
+gf_qq( ~ .std.resid, data = final_model_aug, ylab = "Standardized Residuals", xlab = "N (0,1) Quantiles") %>%
+  gf_qqline()
+gf_point(.std.resid ~ .fitted, data =final_model_aug, ylab = "Standardized Residual", xlab = "Fitted Values") %>%
+  gf_hline(yintercept = 0, linetype = 2)
+```
+
+### final model (validation) compared to a model with no interactions, using anova test, shows that our final model is not significant.
+```{r}
+NoDiscipline <- lm(points~  in_box_goals + out_box_goals + clean_sheet+goals_conceded + total_cross , data = validation_set)
+anova(NoDiscipline, final_model)
+NoInteraction <- lm(points~  in_box_goals + out_box_goals + clean_sheet+goals_conceded +total_cross + total_red_card + total_yellow_card + pen_goals_conceded, data = validation_set)
+anova(NoInteraction, final_model)
+```
+
+### check for multicollinearity, shows there is some but through logical conclusions this did not make sense.  
+
+```{r}
+GGally::ggnostic(broomify(final_model), progress = FALSE)
+data.frame(vif(final_model))
+```
+
+### check for outliers, there are none in validation set. 
+
+```{r}
+kable(tidy(infIndexPlot(final_model, vars = c ("Cook", "Studentized", "hat")))) 
+```
+
+
