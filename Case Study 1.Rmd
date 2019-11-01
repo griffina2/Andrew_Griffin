@@ -1,0 +1,87 @@
+---
+title: 'Case Study #1'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+pm <- read.csv("http://aloy.rbind.io/data/PM.csv")
+library(ggformula) # For plots
+library(broom)     # for extracting compontents of lm objects
+library(gridExtra) # grids of plots
+library(dplyr)
+```
+
+```{r}
+gf_point(Particles ~ Cars, data = pm)%>%
+  gf_labs(x = "Number of Cars that pass through and Intersection", y = "Particulate Matter levels (ppm)",
+          title = "PM levels in the air vs.the number of cars that pass through an intersection")
+
+summary(pm$Particles)
+summary(pm$Cars)
+```
+
+
+```{r}
+gf_point(Particles ~ Cars, data = pm)%>%
+  gf_lm(Particles ~ Cars, data=pm)%>%
+  gf_lm(interval = "prediction") %>%
+  gf_lm(interval = "confidence", alpha = 0.6)
+```
+```{r}
+pm_lm <- lm(Particles ~ Cars, data = pm)
+pm_aug <- augment(pm_lm)
+head(pm_lm)
+gf_point(.resid ~ .fitted, data= pm_lm)%>%
+  gf_hline(yintercept = 0, linetype = 2)
+
+summary(pm_lm)
+
+```
+
+```{r}
+pm <- mutate(pm, log.Cars = log(Cars), log.Particles = log(Particles) )
+pm_lm <- lm(log.Particles ~ log.Cars, data = pm)
+tidy(pm_lm)
+
+
+gf_point(log(Particles) ~ log(Cars), data = pm, alpha = 0.6,
+xlab = "# of cars (log scale)", ylab = "Particles in PPM (log scale)") %>%
+gf_lm(interval = "confidence")
+```
+
+```{r}
+gf_point(Particles ~ Cars, data = pm, alpha = 0.6,
+xlab = "CARS", ylab = "Particles") %>%
+gf_lm(formula = log(y) ~ log(x), backtrans = exp, interval = "confidence")
+```
+
+
+```{r}
+quadratic_lm <- lm(Particles ~ Cars + I(Cars^2), data = pm)
+gf_point(Particles ~ Cars, data = pm, xlab = "Cars", ylab = "Particles") %>%
+gf_lm(formula = y ~ x + I(x^2))
+```
